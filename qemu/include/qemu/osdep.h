@@ -115,6 +115,57 @@ struct uc_struct;
 #include "sys/mman.h"
 #endif
 
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#if TARGET_OS_TV && !TARGET_OS_SIMULATOR
+#include <stdlib.h>
+
+#ifndef PROT_NONE
+#define PROT_NONE  0x0
+#define PROT_READ  0x1
+#define PROT_WRITE 0x2
+#define PROT_EXEC  0x4
+#endif
+
+#ifndef MAP_FAILED
+#define MAP_FAILED ((void *)-1)
+#endif
+#ifndef MAP_SHARED
+#define MAP_SHARED 0x01
+#define MAP_PRIVATE 0x02
+#define MAP_FIXED  0x10
+#define MAP_ANON   0x1000
+#define MAP_ANONYMOUS MAP_ANON
+#endif
+
+static inline void *mmap(void *addr, size_t len, int prot, int flags, int fd, long offset) {
+    (void)addr; (void)prot; (void)flags; (void)fd; (void)offset;
+    void *ptr = NULL;
+    if (posix_memalign(&ptr, 4096, len) != 0) return MAP_FAILED;
+    memset(ptr, 0, len);
+    return ptr;
+}
+
+static inline int munmap(void *addr, size_t len) {
+    (void)len;
+    if (addr && addr != MAP_FAILED) free(addr);
+    return 0;
+}
+
+static inline int mprotect(void *addr, size_t len, int prot) {
+    (void)addr; (void)len; (void)prot;
+    return 0;
+}
+
+static inline void *memalign(size_t alignment, size_t size) {
+    void *ptr = NULL;
+    if (posix_memalign(&ptr, alignment, size) != 0) return NULL;
+    return ptr;
+}
+#endif
+#endif
+
+
 /*
  * Only allow MAP_JIT for Mojave or later.
  * 
