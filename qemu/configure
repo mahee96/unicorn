@@ -126,7 +126,11 @@ compile_object() {
 compile_prog() {
   local_cflags="$1"
   local_ldflags="$2"
-  do_cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $QEMU_LDFLAGS $local_ldflags
+  if echo "$cc $QEMU_CFLAGS $sysroot $target_os" | grep -qi "appletvos" ; then
+    do_cc $QEMU_CFLAGS $local_cflags -c -o $TMPO $TMPC
+  else
+    do_cc $QEMU_CFLAGS $local_cflags -o $TMPE $TMPC $QEMU_LDFLAGS $local_ldflags
+  fi
 }
 
 # symbolically link $1 to $2.  Portable version of "ln -sf".

@@ -138,7 +138,11 @@ struct uc_struct;
 #define MAP_ANONYMOUS MAP_ANON
 #endif
 
-static inline void *mmap(void *addr, size_t len, int prot, int flags, int fd, long offset) {
+#define mmap uc_tvos_mmap
+#define munmap uc_tvos_munmap
+#define mprotect uc_tvos_mprotect
+
+static inline void *uc_tvos_mmap(void *addr, size_t len, int prot, int flags, int fd, long offset) {
     (void)addr; (void)prot; (void)flags; (void)fd; (void)offset;
     void *ptr = NULL;
     if (posix_memalign(&ptr, 4096, len) != 0) return MAP_FAILED;
@@ -146,13 +150,13 @@ static inline void *mmap(void *addr, size_t len, int prot, int flags, int fd, lo
     return ptr;
 }
 
-static inline int munmap(void *addr, size_t len) {
+static inline int uc_tvos_munmap(void *addr, size_t len) {
     (void)len;
     if (addr && addr != MAP_FAILED) free(addr);
     return 0;
 }
 
-static inline int mprotect(void *addr, size_t len, int prot) {
+static inline int uc_tvos_mprotect(void *addr, size_t len, int prot) {
     (void)addr; (void)len; (void)prot;
     return 0;
 }
