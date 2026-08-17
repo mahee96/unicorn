@@ -30,7 +30,7 @@ build_slice() {
     local name="$1"
     local sysroot="$2"
     local archs="$3"
-    local extra_cflags="$4"
+    local extra_args="$4"
     local out_name="$5"
 
     echo "==> Building Unicorn for ${name}..."
@@ -47,8 +47,10 @@ build_slice() {
         -DCMAKE_OSX_ARCHITECTURES="${archs}"
         -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY
     )
-    if [ -n "${extra_cflags}" ]; then
-        cmake_args+=(-DCMAKE_C_FLAGS="${extra_cflags}")
+    if [ -n "${extra_args}" ]; then
+        for arg in ${extra_args}; do
+            cmake_args+=("${arg}")
+        done
     fi
 
     cmake "${ROOT_DIR}" "${cmake_args[@]}"
