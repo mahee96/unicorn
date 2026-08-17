@@ -854,14 +854,14 @@ void tlb_set_page_with_attrs(CPUState *cpu, target_ulong vaddr,
     }
 
     is_ram = memory_region_is_ram(section->mr);
-    // is_romd = memory_region_is_romd(section->mr);
-
-    if (is_ram) {
+    void *ram_ptr = is_ram ? memory_region_get_ram_ptr(section->mr) : NULL;
+    if (is_ram && ram_ptr != NULL) {
         /* RAM and ROMD both have associated host memory. */
-        addend = (uintptr_t)memory_region_get_ram_ptr(section->mr) + xlat;
+        addend = (uintptr_t)ram_ptr + xlat;
     } else {
-        /* I/O does not; force the host address to NULL. */
+        /* I/O or NULL host pointer; force slow-path MMIO handling. */
         addend = 0;
+        is_ram = false;
     }
 
     write_address = address;
@@ -1513,18 +1513,27 @@ load_helper(CPUArchState *env, target_ulong addr, TCGMemOpIdx oi,
             FullLoadHelper *full_load)
 {
     uintptr_t mmu_idx = get_mmuidx(oi);
+    if (mmu_idx >= NB_MMU_MODES) {
+        mmu_idx = 0;
+    }
+    const MMUAccessType access_type =
+        code_read ? MMU_INST_FETCH : MMU_DATA_LOAD;
+    size_t size = memop_size(op);
+    if (!env_tlb(env)->f[mmu_idx].table) {
+        tlb_fill(env_cpu(env), addr, size, access_type, mmu_idx, retaddr);
+        if (!env_tlb(env)->f[mmu_idx].table) {
+            return 0;
+        }
+    }
     uintptr_t index = tlb_index(env, mmu_idx, addr);
     CPUTLBEntry *entry = tlb_entry(env, mmu_idx, addr);
     target_ulong tlb_addr = code_read ? entry->addr_code : entry->addr_read;
     hwaddr paddr;
     const size_t tlb_off = code_read ?
         offsetof(CPUTLBEntry, addr_code) : offsetof(CPUTLBEntry, addr_read);
-    const MMUAccessType access_type =
-        code_read ? MMU_INST_FETCH : MMU_DATA_LOAD;
     unsigned a_bits = get_alignment_bits(get_memop(oi));
     void *haddr;
     uint64_t res;
-    size_t size = memop_size(op);
     int error_code;
     struct hook *hook;
     bool handled;
@@ -1821,28 +1830,35 @@ load_helper(CPUArchState *env, target_ulong addr, TCGMemOpIdx oi,
         unsigned shift;
         int old_size;
     do_unaligned_access:
-        addr1 = addr & ~((target_ulong)size - 1);
-        addr2 = addr1 + size;
+        addr1 = addr & ~((target_ulong)(size > 8 ? 8 : size) - 1);
+        addr2 = addr1 + (size > 8 ? 8 : size);
         old_size = uc->size_recur_mem;
         uc->size_recur_mem = size;
         r1 = full_load(env, addr1, oi, retaddr);
         r2 = full_load(env, addr2, oi, retaddr);
         uc->size_recur_mem = old_size;
-        shift = (addr & (size - 1)) * 8;
+        shift = (addr & ((size > 8 ? 8 : size) - 1)) * 8;
 
         if (memop_big_endian(op)) {
             /* Big-endian combine.  */
-            res = (r1 << shift) | (r2 >> ((size * 8) - shift));
+            res = (r1 << shift) | (r2 >> ((((size > 8 ? 8 : size) * 8) - shift) & 63));
         } else {
             /* Little-endian combine.  */
-            res = (r1 >> shift) | (r2 << ((size * 8) - shift));
+            res = (r1 >> shift) | (r2 << ((((size > 8 ? 8 : size) * 8) - shift) & 63));
         }
-        res = res & MAKE_64BIT_MASK(0, size * 8);
+        res = res & MAKE_64BIT_MASK(0, (size > 8 ? 8 : size) * 8);
         goto _out;
     }
 
     haddr = (void *)((uintptr_t)addr + entry->addend);
     res = load_memop(haddr, op);
+#ifdef UNICORN_LOGGING
+    if ((addr & ~0xfff) == 0x10000) {
+        printf("[load_helper] addr=0x%llx haddr=%p res=0x%llx raw=0x%08x\n",
+               (unsigned long long)addr, haddr, (unsigned long long)res, *(uint32_t*)haddr);
+        fflush(stdout);
+    }
+#endif
 
 _out:
     // Unicorn: callback on successful data read
@@ -2159,6 +2175,16 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
     struct uc_struct *uc = env->uc;
     HOOK_FOREACH_VAR_DECLARE;
     uintptr_t mmu_idx = get_mmuidx(oi);
+    if (mmu_idx >= NB_MMU_MODES) {
+        mmu_idx = 0;
+    }
+    size_t size = memop_size(op);
+    if (!env_tlb(env)->f[mmu_idx].table) {
+        tlb_fill(env_cpu(env), addr, size, MMU_DATA_STORE, mmu_idx, retaddr);
+        if (!env_tlb(env)->f[mmu_idx].table) {
+            return;
+        }
+    }
     uintptr_t index = tlb_index(env, mmu_idx, addr);
     CPUTLBEntry *entry = tlb_entry(env, mmu_idx, addr);
     target_ulong tlb_addr = tlb_addr_write(entry);
@@ -2166,7 +2192,6 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
     const size_t tlb_off = offsetof(CPUTLBEntry, addr_write);
     unsigned a_bits = get_alignment_bits(get_memop(oi));
     void *haddr;
-    size_t size = memop_size(op);
     struct hook *hook;
     bool handled;
     MemoryRegion *mr;
@@ -2432,11 +2457,12 @@ store_helper(CPUArchState *env, target_ulong addr, uint64_t val,
          */
         old_size = uc->size_recur_mem;
         uc->size_recur_mem = size;
-        for (i = 0; i < size; ++i) {
+        size_t store_bytes = (size > 8) ? 8 : size;
+        for (i = 0; i < store_bytes; ++i) {
             uint8_t val8;
             if (memop_big_endian(op)) {
                 /* Big-endian extract.  */
-                val8 = val >> (((size - 1) * 8) - (i * 8));
+                val8 = val >> (((store_bytes - 1) * 8) - (i * 8));
             } else {
                 /* Little-endian extract.  */
                 val8 = val >> (i * 8);

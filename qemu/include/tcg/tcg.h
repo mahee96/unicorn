@@ -1298,7 +1298,11 @@ static inline MemOp get_memop(TCGMemOpIdx oi)
  */
 static inline unsigned get_mmuidx(TCGMemOpIdx oi)
 {
+#ifdef NB_MMU_MODES
+    return (oi & 15) % NB_MMU_MODES;
+#else
     return oi & 15;
+#endif
 }
 
 /**
