@@ -8728,6 +8728,12 @@ static void arm_cpu_do_interrupt_aarch32_qemu(CPUState *cs)
 /* Handle exception entry to a target EL which is using AArch64 */
 static void arm_cpu_do_interrupt_aarch64_qemu(CPUState *cs)
 {
+#ifdef UNICORN_LOGGING
+    ARMCPU *c_dbg = ARM_CPU(cs);
+    printf("[QEMU EXCEPTION] intno=%d syndrome=0x%x target_el=%d cur_el=%d pc=0x%llx\n",
+           cs->exception_index, c_dbg->env.exception.syndrome, c_dbg->env.exception.target_el, arm_current_el(&c_dbg->env), (unsigned long long)c_dbg->env.pc);
+    fflush(stdout);
+#endif
     ARMCPU *cpu = ARM_CPU(cs);
     CPUARMState *env = &cpu->env;
     unsigned int new_el = env->exception.target_el;

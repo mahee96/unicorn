@@ -343,6 +343,7 @@ ARMCPU *cpu_aarch64_init(struct uc_struct *uc)
     cc = (CPUClass *)&cpu->cc;
     cs->cc = cc;
     cs->uc = uc;
+    cpu->env.uc = uc;
     uc->cpu = (CPUState *)cpu;
 
     /* init CPUClass */
@@ -380,7 +381,9 @@ ARMCPU *cpu_aarch64_init(struct uc_struct *uc)
         }
     }
 
-    // Backward compatability to enable FULL 64bits address space.
+    // Enable 64-bit mode for all exception levels
+    env->cp15.scr_el3 |= SCR_RW;
+    env->cp15.hcr_el2 |= HCR_RW;
     env->pstate = PSTATE_MODE_EL1h;
 
     arm_rebuild_hflags(env);

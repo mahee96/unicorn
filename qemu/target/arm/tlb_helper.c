@@ -111,6 +111,9 @@ void arm_cpu_do_unaligned_access(CPUState *cs, vaddr vaddr,
                                  int mmu_idx, uintptr_t retaddr)
 {
     ARMCPU *cpu = ARM_CPU(cs);
+    if (!(cpu->env.cp15.sctlr_el[1] & 2)) {
+        return;
+    }
     ARMMMUFaultInfo fi = { 0 };
 
     /* now we have a real cpu fault */
@@ -147,41 +150,12 @@ bool arm_cpu_tlb_fill(CPUState *cs, vaddr address, int size,
                       bool probe, uintptr_t retaddr)
 {
     struct uc_struct *uc = cs->uc;
-    ARMCPU *cpu = ARM_CPU(cs);
-
-    hwaddr phys_addr;
-    target_ulong page_size;
-    int prot, ret;
+    hwaddr phys_addr = address & TARGET_PAGE_MASK;
+    vaddr v_addr = address & TARGET_PAGE_MASK;
+    int prot = PAGE_READ | PAGE_WRITE | PAGE_EXEC;
     MemTxAttrs attrs = { 0 };
-    ARMMMUFaultInfo fi = { 0 };
 
-    /*
-     * Walk the page table and (if the mapping exists) add the page
-     * to the TLB.  On success, return true.  Otherwise, if probing,
-     * return false.  Otherwise populate fsr with ARM DFSR/IFSR fault
-     * register format, and signal the fault.
-     */
-    ret = get_phys_addr(&cpu->env, address, access_type,
-                        core_to_arm_mmu_idx(&cpu->env, mmu_idx),
-                        &phys_addr, &attrs, &prot, &page_size, &fi, NULL);
-    if (likely(!ret)) {
-        /*
-         * Map a single [sub]page. Regions smaller than our declared
-         * target page size are handled specially, so for those we
-         * pass in the exact addresses.
-         */
-        if (page_size >= TARGET_PAGE_SIZE) {
-            phys_addr &= TARGET_PAGE_MASK;
-            address &= TARGET_PAGE_MASK;
-        }
-        tlb_set_page_with_attrs(cs, address, phys_addr, attrs,
-                                prot, mmu_idx, page_size);
-        return true;
-    } else if (probe) {
-        return false;
-    } else {
-        /* now we have a real cpu fault */
-        cpu_restore_state(cs, retaddr, true);
-        arm_deliver_fault(cpu, address, access_type, mmu_idx, &fi);
-    }
+    tlb_set_page_with_attrs(cs, v_addr, phys_addr, attrs,
+                            prot, mmu_idx, TARGET_PAGE_SIZE);
+    return true;
 }

@@ -177,13 +177,9 @@ static void arm_cpu_reset(CPUState *dev)
         /* 64 bit CPUs always start in 64 bit mode */
         env->aarch64 = 1;
         /* Reset into the highest available EL */
-        if (arm_feature(env, ARM_FEATURE_EL3)) {
-            env->pstate = PSTATE_MODE_EL3h;
-        } else if (arm_feature(env, ARM_FEATURE_EL2)) {
-            env->pstate = PSTATE_MODE_EL2h;
-        } else {
-            env->pstate = PSTATE_MODE_EL1h;
-        }
+        env->cp15.scr_el3 |= SCR_RW | SCR_NS;
+        env->cp15.hcr_el2 |= HCR_RW;
+        env->pstate = PSTATE_MODE_EL1h;
         env->pc = cpu->rvbar;
     }
 
