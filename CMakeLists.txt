@@ -86,8 +86,13 @@ option(UNICORN_FUZZ "Enable fuzzing" OFF)
 option(UNICORN_LOGGING "Enable logging" OFF)
 option(UNICORN_BUILD_TESTS "Build unicorn tests" ${PROJECT_IS_TOP_LEVEL})
 option(UNICORN_INSTALL "Enable unicorn installation" ${PROJECT_IS_TOP_LEVEL})
-set(UNICORN_ARCH "x86;arm;aarch64;riscv;mips;sparc;m68k;ppc;s390x;tricore" CACHE STRING "Enabled unicorn architectures")
 option(UNICORN_TRACER "Trace unicorn execution" OFF)
+option(UNICORN_ENABLE_TCI "Enable Tiny Code Interpreter (TCI) pure software emulation" OFF)
+
+if(UNICORN_ENABLE_TCI)
+    set(UNICORN_TARGET_ARCH "tci" CACHE STRING "" FORCE)
+    add_compile_definitions(CONFIG_TCG_INTERPRETER=1)
+endif()
 
 foreach(ARCH_LOOP ${UNICORN_ARCH})
     string(TOUPPER "${ARCH_LOOP}" ARCH_LOOP)
@@ -165,6 +170,7 @@ if(MSVC)
         string(REGEX REPLACE "[/-]M[TD]d?" "" CMAKE_C_FLAGS ${CMAKE_C_FLAGS})
     endif()
 else()
+    if(NOT DEFINED UNICORN_TARGET_ARCH)
     if(MINGW)
         execute_process(COMMAND ${CMAKE_C_COMPILER} -dumpmachine
             OUTPUT_VARIABLE UC_COMPILER_VERSION)
@@ -282,6 +288,7 @@ else()
             message(FATAL_ERROR "Unknown host compiler: ${CMAKE_C_COMPILER}.")
         endwhile(TRUE)
     endif()
+    endif()
 
     set(EXTRA_CFLAGS "--extra-cflags=")
     if(UNICORN_HAS_X86)
@@ -379,7 +386,13 @@ else()
         ${EXTRA_CFLAGS}
         ${TARGET_LIST}
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        RESULT_VARIABLE CONF_RES
+        OUTPUT_VARIABLE CONF_OUT
+        ERROR_VARIABLE CONF_ERR
     )
+    if(NOT CONF_RES EQUAL 0)
+        message(FATAL_ERROR "qemu/configure failed (${CONF_RES}):\nSTDOUT: ${CONF_OUT}\nSTDERR: ${CONF_ERR}")
+    endif()
     execute_process(COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/qemu/scripts/create_config
         INPUT_FILE ${CMAKE_BINARY_DIR}/config-host.mak
         OUTPUT_FILE ${CMAKE_BINARY_DIR}/config-host.h
@@ -518,6 +531,10 @@ set(UNICORN_ARCH_COMMON
 
     qemu/softmmu/unicorn_vtlb.c
 )
+
+if(UNICORN_TARGET_ARCH STREQUAL "tci" OR CONFIG_TCG_INTERPRETER)
+    list(APPEND UNICORN_ARCH_COMMON qemu/tcg/tci.c)
+endif()
 
 if(UNICORN_HAS_X86)
 add_library(x86_64-softmmu STATIC
