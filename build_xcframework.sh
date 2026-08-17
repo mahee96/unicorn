@@ -76,12 +76,12 @@ popd >/dev/null
 echo "    macOS done."
 
 #  Simulators (TCI pure software interpreter)
-build_slice "iOS Simulator"      iphonesimulator   "arm64;x86_64"  "-DUNICORN_ENABLE_TCI=ON"                  "ios_sim"
-build_slice "tvOS Simulator"     appletvsimulator  "arm64;x86_64"  "-DUNICORN_ENABLE_TCI=ON"                  "tvos_sim"
-build_slice "visionOS Simulator" xrsimulator       "arm64"         "-DUNICORN_ENABLE_TCI=ON -DCONFIG_INT128"  "xros_sim"
-build_slice "iOS Device"         iphoneos          "arm64"         "-DUNICORN_ENABLE_TCI=ON"                  "ios_device"
-build_slice "tvOS Device"        appletvos         "arm64"         "-DUNICORN_ENABLE_TCI=ON -DCONFIG_INT128"  "tvos_device"
-build_slice "visionOS Device"    xros              "arm64"         "-DUNICORN_ENABLE_TCI=ON -DCONFIG_INT128"  "xros_device"
+build_slice "iOS Simulator"      iphonesimulator   "arm64;x86_64"  "-DUNICORN_ENABLE_TCI=ON"                     "ios_sim"
+build_slice "tvOS Simulator"     appletvsimulator  "arm64;x86_64"  "-DUNICORN_ENABLE_TCI=ON"                     "tvos_sim"
+build_slice "visionOS Simulator" xrsimulator       "arm64"         "-DUNICORN_ENABLE_TCI=ON -DCONFIG_INT128=ON"  "xros_sim"
+build_slice "iOS Device"         iphoneos          "arm64"         "-DUNICORN_ENABLE_TCI=ON"                     "ios_device"
+build_slice "tvOS Device"        appletvos         "arm64"         "-DUNICORN_ENABLE_TCI=ON -DCONFIG_INT128=ON"  "tvos_device"
+build_slice "visionOS Device"    xros              "arm64"         "-DUNICORN_ENABLE_TCI=ON -DCONFIG_INT128=ON"  "xros_device"
 
 # ── Bundle into XCFramework
 echo "==> Creating Unicorn.xcframework..."
