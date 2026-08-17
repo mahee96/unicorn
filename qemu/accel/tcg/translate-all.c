@@ -1027,6 +1027,12 @@ static inline void *alloc_code_gen_buffer(struct uc_struct *uc)
     flags |= MAP_JIT;
 #endif
     buf = mmap(NULL, size, prot, flags, -1, 0);
+#ifdef CONFIG_TCG_INTERPRETER
+    if (buf == MAP_FAILED) {
+        /* In TCI mode, if RWX allocation fails (e.g. Darwin W^X security rules), retry with RW */
+        buf = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    }
+#endif
     if (buf == MAP_FAILED) {
         return NULL;
     }

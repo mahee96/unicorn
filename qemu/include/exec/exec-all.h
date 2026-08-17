@@ -407,7 +407,11 @@ void tb_exec_unlock(struct uc_struct*);
    to indicate the compressed mode; subtracting two works around that.  It
    is also the case that there are no host isas that contain a call insn
    smaller than 4 bytes, so we don't worry about special-casing this.  */
+#ifdef CONFIG_TCG_INTERPRETER
+#define GETPC_ADJ   0
+#else
 #define GETPC_ADJ   2
+#endif
 
 #if defined(CONFIG_DEBUG_TCG)
 void assert_no_pages_locked(void);
