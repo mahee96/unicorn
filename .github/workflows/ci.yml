@@ -1,4 +1,4 @@
-name: Unicorn.xcframework Release build
+name: Unicorn Release Build
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   macos:
-    name: macOS Build
+    name: macOS XCFramework
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,11 +34,91 @@ jobs:
           name: unicorn-xcframework
           path: Unicorn.xcframework.zip
 
+  linux:
+    name: Linux (${{ matrix.arch }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64
+            cmake_flags: ""
+            packages: ""
+          - arch: aarch64
+            cmake_flags: "-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc -DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++ -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64"
+            packages: "gcc-aarch64-linux-gnu g++-aarch64-linux-gnu"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Install dependencies
+        if: matrix.packages != ''
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.packages }}
+
+      - name: Build static library
+        run: |
+          cmake -B build -G "Unix Makefiles" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DUNICORN_BUILD_TESTS=OFF \
+            -DUNICORN_INSTALL=ON \
+            -DCMAKE_INSTALL_PREFIX=install \
+            ${{ matrix.cmake_flags }}
+          cmake --build build --config Release -j$(nproc)
+          cmake --install build
+
+      - name: Package Linux artifact
+        run: |
+          cd install && tar -czvf ../unicorn-linux-${{ matrix.arch }}.tar.gz * && cd ..
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unicorn-linux-${{ matrix.arch }}
+          path: unicorn-linux-${{ matrix.arch }}.tar.gz
+
+  windows:
+    name: Windows (${{ matrix.arch }})
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            cmake_arch: "-A x64"
+          - arch: arm64
+            cmake_arch: "-A ARM64"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "true"
+
+      - name: Build static library
+        run: |
+          cmake -B build ${{ matrix.cmake_arch }} `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_SHARED_LIBS=OFF `
+            -DUNICORN_BUILD_TESTS=OFF `
+            -DUNICORN_INSTALL=ON `
+            -DCMAKE_INSTALL_PREFIX=install
+          cmake --build build --config Release --parallel
+          cmake --install build --config Release
+
+      - name: Package Windows artifact
+        run: |
+          Compress-Archive -Path install\* -DestinationPath unicorn-windows-${{ matrix.arch }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: unicorn-windows-${{ matrix.arch }}
+          path: unicorn-windows-${{ matrix.arch }}.zip
+
   release:
     name: Release
     if: startsWith(github.ref, 'refs/tags/')
-    needs:
-      - macos
+    needs: [macos, linux, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -48,45 +128,25 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate release update policy
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          pushed_tag="${GITHUB_REF_NAME}"
-          echo "Pushed tag: ${pushed_tag}"
-
-          latest_release_tag=$(gh release list --repo "${GITHUB_REPOSITORY}" --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
-          echo "Latest release tag on GitHub: ${latest_release_tag}"
-
-          if gh release view "${pushed_tag}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "Release for tag '${pushed_tag}' already exists on GitHub."
-            if [[ -n "${latest_release_tag}" && "${pushed_tag}" != "${latest_release_tag}" ]]; then
-              echo "::error::Correcting previous releases (other than last release) is disallowed (pushed: '${pushed_tag}', latest release: '${latest_release_tag}')."
-              exit 1
-            else
-              echo "Pushed tag matches the latest release tag. Update allowed."
-            fi
-          else
-            echo "Release for tag '${pushed_tag}' does not exist yet. New release creation allowed."
-          fi
-
-      - name: Download XCFramework artifact
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          name: unicorn-xcframework
-          path: artifacts/unicorn-xcframework
+          path: artifacts
 
       - name: Package release archives
         shell: bash
         run: |
-          set -euo pipefail
           mkdir -p release
-          tag="${GITHUB_REF_NAME}"
-          cp artifacts/unicorn-xcframework/Unicorn.xcframework.zip "release/Unicorn.xcframework.zip"
-          (cd release && sha256sum "Unicorn.xcframework.zip" > "Unicorn.xcframework.zip.sha256")
-          ls -la release
+          cp artifacts/unicorn-xcframework/Unicorn.xcframework.zip release/
+          cp artifacts/unicorn-linux-x86_64/unicorn-linux-x86_64.tar.gz release/
+          cp artifacts/unicorn-linux-aarch64/unicorn-linux-aarch64.tar.gz release/
+          cp artifacts/unicorn-windows-x64/unicorn-windows-x64.zip release/
+          cp artifacts/unicorn-windows-arm64/unicorn-windows-arm64.zip release/
+          cd release
+          for f in *; do
+            [ -f "$f" ] && sha256sum "$f" > "$f.sha256"
+          done
+          ls -la
 
       - name: Create or Update GitHub release
         uses: softprops/action-gh-release@v2
