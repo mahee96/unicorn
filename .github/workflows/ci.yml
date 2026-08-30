@@ -87,8 +87,6 @@ jobs:
         include:
           - arch: x64
             cmake_arch: "-A x64"
-          - arch: arm64
-            cmake_arch: "-A ARM64"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -141,7 +139,6 @@ jobs:
           cp artifacts/unicorn-linux-x86_64/unicorn-linux-x86_64.tar.gz release/
           cp artifacts/unicorn-linux-aarch64/unicorn-linux-aarch64.tar.gz release/
           cp artifacts/unicorn-windows-x64/unicorn-windows-x64.zip release/
-          cp artifacts/unicorn-windows-arm64/unicorn-windows-arm64.zip release/
           cd release
           for f in *; do
             [ -f "$f" ] && sha256sum "$f" > "$f.sha256"
