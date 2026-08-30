@@ -28,6 +28,11 @@
 #ifndef QEMU_CRC32C_H
 #define QEMU_CRC32C_H
 
+#include <stdint.h>
+
+/* zlib and system libraries define crc32, so redefine to avoid symbol conflicts. */
+#define crc32c qemu_crc32c
+#define crc32 qemu_crc32
 
 uint32_t crc32c(uint32_t crc, const uint8_t *data, unsigned int length);
 
