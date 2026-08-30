@@ -105,7 +105,7 @@ static const uint32_t crc32c_table[256] = {
 };
 
 
-uint32_t crc32c(uint32_t crc, const uint8_t *data, unsigned int length)
+uint32_t qemu_crc32c(uint32_t crc, const uint8_t *data, unsigned int length)
 {
     while (length--) {
         crc = crc32c_table[(crc ^ *data++) & 0xFFL] ^ (crc >> 8);
@@ -187,7 +187,7 @@ static const uint32_t crc32_table[256] = {
     0xB40BBE37U, 0xC30C8EA1U, 0x5A05DF1BU, 0x2D02EF8DU,
 };
 
-uint32_t crc32(uint32_t crc, const uint8_t *data, unsigned int length)
+uint32_t qemu_crc32(uint32_t crc, const uint8_t *data, unsigned int length)
 {
     int i;
     crc = ~crc;

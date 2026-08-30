@@ -526,7 +526,7 @@ uint64_t HELPER(crc32_64)(uint64_t acc, uint64_t val, uint32_t bytes)
 
     stq_le_p(buf, val);
 
-    return crc32(acc ^ 0xffffffff, buf, bytes) ^ 0xffffffff;
+    return qemu_crc32(acc ^ 0xffffffff, buf, bytes) ^ 0xffffffff;
 }
 
 uint64_t HELPER(crc32c_64)(uint64_t acc, uint64_t val, uint32_t bytes)
@@ -536,7 +536,7 @@ uint64_t HELPER(crc32c_64)(uint64_t acc, uint64_t val, uint32_t bytes)
     stq_le_p(buf, val);
 
     /* Linux crc32c converts the output to one's complement.  */
-    return crc32c(acc, buf, bytes) ^ 0xffffffff;
+    return qemu_crc32c(acc, buf, bytes) ^ 0xffffffff;
 }
 
 uint64_t HELPER(paired_cmpxchg64_le)(CPUARMState *env, uint64_t addr,

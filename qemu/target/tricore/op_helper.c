@@ -2290,7 +2290,7 @@ uint32_t helper_crc32(uint32_t arg0, uint32_t arg1)
     uint8_t buf[4];
     stl_be_p(buf, arg0);
 
-    return crc32(arg1, buf, 4);
+    return qemu_crc32(arg1, buf, 4);
 }
 
 /* context save area (CSA) related helpers */

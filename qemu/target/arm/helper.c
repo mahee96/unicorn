@@ -11453,7 +11453,7 @@ uint32_t HELPER(crc32)(uint32_t acc, uint32_t val, uint32_t bytes)
 
     stl_le_p(buf, val);
 
-    return crc32(acc ^ 0xffffffff, buf, bytes) ^ 0xffffffff;
+    return qemu_crc32(acc ^ 0xffffffff, buf, bytes) ^ 0xffffffff;
 }
 
 uint32_t HELPER(crc32c)(uint32_t acc, uint32_t val, uint32_t bytes)
@@ -11463,7 +11463,7 @@ uint32_t HELPER(crc32c)(uint32_t acc, uint32_t val, uint32_t bytes)
     stl_le_p(buf, val);
 
     /* Linux crc32c converts the output to one's complement.  */
-    return crc32c(acc, buf, bytes) ^ 0xffffffff;
+    return qemu_crc32c(acc, buf, bytes) ^ 0xffffffff;
 }
 
 /* Return the exception level to which FP-disabled exceptions should
